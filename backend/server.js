@@ -22,6 +22,15 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Mount All Routes
 app.use('/api', apiRoutes);
 
+// Root Welcome Endpoint
+app.get('/', (req, res) => {
+  res.json({
+    status: 'success',
+    message: 'AllInOnePlace Wedding Planner Backend API is running live! 🚀',
+    timestamp: new Date()
+  });
+});
+
 // Seed Categories and Profiles
 async function seedInitialData() {
   try {
