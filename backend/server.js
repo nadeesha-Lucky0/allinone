@@ -22,13 +22,20 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Mount All Routes
 app.use('/api', apiRoutes);
 
-// Root Welcome Endpoint
-app.get('/', (req, res) => {
-  res.json({
-    status: 'success',
-    message: 'AllInOnePlace Wedding Planner Backend API is running live! 🚀',
-    timestamp: new Date()
-  });
+// Serve static assets from frontend build in same-origin production
+const frontendDistPath = path.join(__dirname, '../frontend/dist');
+app.use(express.static(frontendDistPath));
+
+// Fallback all other routes to index.html for Single Page App routing
+app.get('*', (req, res) => {
+  // If it's an API request that didn't match a route, send a clean 404
+  if (req.originalUrl.startsWith('/api')) {
+    return res.status(404).json({
+      status: 'error',
+      message: 'API endpoint not found'
+    });
+  }
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
 });
 
 // Seed Categories and Profiles

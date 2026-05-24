@@ -5,7 +5,7 @@ import ClientDashboard from './components/ClientDashboard';
 import AdminPanel from './components/AdminPanel';
 import ClientProfileView from './components/ClientProfileView';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' && window.location.port !== '5000' ? 'http://localhost:5000/api' : '/api');
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
