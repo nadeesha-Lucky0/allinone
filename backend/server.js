@@ -25,8 +25,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/api', apiRoutes);
 
 // Serve static assets from frontend build in same-origin production
-const frontendDistPath = path.join(__dirname, '../frontend/dist');
-app.use(express.static(frontendDistPath));
+const frontendOutPath = path.join(__dirname, '../frontend/out');
+app.use(express.static(frontendOutPath));
 
 // Fallback all other routes to index.html for Single Page App routing
 app.get('*', (req, res) => {
@@ -37,7 +37,7 @@ app.get('*', (req, res) => {
       message: 'API endpoint not found'
     });
   }
-  res.sendFile(path.join(frontendDistPath, 'index.html'));
+  res.sendFile(path.join(frontendOutPath, 'index.html'));
 });
 
 // Seed Categories and Profiles
