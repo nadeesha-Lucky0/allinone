@@ -21,6 +21,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['client', 'admin'],
     default: 'client'
+  },
+  allowedPromotions: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true

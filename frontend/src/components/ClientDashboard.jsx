@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Tag, Building, Phone, Mail, MapPin, Globe, CheckCircle, Sparkles, Image, ShieldAlert, DollarSign, FileText, Upload, Pencil } from 'lucide-react';
 
-export default function ClientDashboard({ profile, categories, onCreateProfile, onUpdateProfile }) {
+export default function ClientDashboard({ 
+  profile, 
+  categories, 
+  onCreateProfile, 
+  onUpdateProfile,
+  plans = [],
+  purchases = [],
+  currentUser,
+  onBuyPlan,
+  onActivatePromotion,
+  onDeactivatePromotion
+}) {
   // Registration Form States
   const [businessName, setBusinessName] = useState('');
   const [businessEmail, setBusinessEmail] = useState('');
@@ -25,6 +36,7 @@ export default function ClientDashboard({ profile, categories, onCreateProfile, 
   const [isDraggingGallery, setIsDraggingGallery] = useState(false);
   const [activeDashboardTab, setActiveDashboardTab] = useState('gigs');
   const [editingGalleryIndex, setEditingGalleryIndex] = useState(null);
+  const [promoCategorySelect, setPromoCategorySelect] = useState('');
 
   // Populate edits state when profile exists
   useEffect(() => {
@@ -446,7 +458,8 @@ export default function ClientDashboard({ profile, categories, onCreateProfile, 
             gap: '1rem',
             borderBottom: '1px solid var(--card-border)',
             marginBottom: '2.5rem',
-            paddingBottom: '0.2rem'
+            paddingBottom: '0.2rem',
+            flexWrap: 'wrap'
           }}>
             <button
               type="button"
@@ -488,9 +501,207 @@ export default function ClientDashboard({ profile, categories, onCreateProfile, 
             >
               <Image size={16} /> Portfolio Showcase
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveDashboardTab('promotions')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.75rem 1.5rem',
+                fontSize: '1rem',
+                fontWeight: 600,
+                color: activeDashboardTab === 'promotions' ? 'var(--color-gold-400)' : 'var(--text-secondary)',
+                borderBottom: activeDashboardTab === 'promotions' ? '3px solid var(--color-gold-400)' : '3px solid transparent',
+                transition: 'var(--transition)',
+                cursor: 'pointer',
+                background: 'none',
+                outline: 'none'
+              }}
+            >
+              <DollarSign size={16} /> Promotions & Plans
+            </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2.5rem' }}>
+          {activeDashboardTab === 'promotions' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', width: '100%', animation: 'fadeIn 0.3s ease-out' }}>
+              
+              {/* Top Promo Stats & Promotion Activation Control Panel */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem' }}>
+                
+                {/* Active Balance Notice */}
+                <div className="luxury-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '1.75rem' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--card-border)', paddingBottom: '0.75rem' }}>
+                      <Sparkles size={18} color="var(--color-gold-400)" />
+                      <strong style={{ fontSize: '1.2rem', color: 'var(--text-primary)' }}>Promotional Ad Credits</strong>
+                    </div>
+                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
+                      Allowed Featured Placements:
+                    </p>
+                    <div style={{ fontSize: '3rem', fontWeight: 800, color: 'var(--color-gold-400)', fontFamily: 'var(--font-serif)', margin: '0.5rem 0' }}>
+                      {currentUser?.allowedPromotions || 0}
+                    </div>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                      Each approved plan purchase grants you slots to list your business at the absolute top of search directories.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Gig Promotion Slot Activation Panel */}
+                <div className="luxury-card" style={{ padding: '1.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--card-border)', paddingBottom: '0.75rem' }}>
+                    <Building size={18} color="var(--color-gold-400)" />
+                    <strong style={{ fontSize: '1.2rem', color: 'var(--text-primary)' }}>Featured Ad Setup</strong>
+                  </div>
+
+                  {profile.isPromoted ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--color-gold-400)', fontWeight: 600, fontSize: '1.05rem' }}>
+                        <CheckCircle size={18} />
+                        <span>👑 Promoted Ad Placement Active</span>
+                      </div>
+                      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--card-border)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', fontSize: '0.88rem' }}>
+                        📍 Promoted Category: <strong>{profile.promotedCategory || profile.category}</strong>
+                      </div>
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>
+                        Your business profile is currently prioritized and appearing at the very top of directory listings for this category.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={onDeactivatePromotion}
+                        className="btn-secondary"
+                        style={{ padding: '0.65rem', fontSize: '0.88rem', border: '1px solid rgba(248, 113, 113, 0.3)', color: 'var(--error)' }}
+                      >
+                        ⏸️ Pause Promotion / Demote Gig
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontWeight: 600, fontSize: '1.05rem' }}>
+                        <CheckCircle size={18} />
+                        <span>Promotion Inactive</span>
+                      </div>
+
+                      {currentUser?.allowedPromotions > 0 ? (
+                        <>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            <label style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Choose Subcategory to Promote Under:</label>
+                            <select
+                              className="form-control"
+                              style={{ padding: '0.6rem 0.85rem', fontSize: '0.88rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                              value={promoCategorySelect || profile.category}
+                              onChange={(e) => setPromoCategorySelect(e.target.value)}
+                            >
+                              <option value={profile.category}>{profile.category} (My Default Category)</option>
+                              {categories.filter(c => c.name !== profile.category).map(c => (
+                                <option key={c._id} value={c.name}>{c.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => onActivatePromotion(promoCategorySelect || profile.category)}
+                            className="btn-primary"
+                            style={{ padding: '0.65rem', fontSize: '0.88rem', color: '#0b0f19', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}
+                          >
+                            👑 Activate Featured Ad Promotion
+                          </button>
+                        </>
+                      ) : (
+                        <div style={{ background: 'rgba(212, 175, 55, 0.05)', border: '1px solid var(--card-border)', padding: '1rem', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                          ⚠️ You do not have any available promotional slots. Purchase a payment plan package below to activate high-visibility ads.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Purchase Checkout Card Packages */}
+              <div>
+                <h3 style={{ fontStyle: 'italic', fontSize: '1.4rem', marginBottom: '1.25rem' }}>Available Event Promotion Packages</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
+                  {plans.map(plan => (
+                    <div key={plan._id} className="luxury-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid var(--card-border)' }}>
+                      <div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>{plan.name}</div>
+                        <div style={{ display: 'inline-flex', background: 'rgba(212, 175, 55, 0.08)', border: '1px solid rgba(212, 175, 55, 0.2)', padding: '0.2rem 0.6rem', fontSize: '0.75rem', color: 'var(--color-gold-400)', borderRadius: '30px', fontWeight: 600, marginBottom: '1.25rem' }}>
+                          ⚡ Includes {plan.adCount} Featured Ad Placement{plan.adCount > 1 ? 's' : ''}
+                        </div>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>{plan.description}</p>
+                      </div>
+
+                      <div style={{ borderTop: '1px solid rgba(212, 175, 55, 0.08)', paddingTop: '1.25rem', marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--color-gold-400)' }}>
+                          LKR {plan.price?.toLocaleString()}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onBuyPlan(plan._id)}
+                          className="btn-primary"
+                          style={{ padding: '0.5rem 1.25rem', fontSize: '0.82rem', color: '#0b0f19' }}
+                        >
+                          Order Package
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {plans.length === 0 && (
+                    <div style={{ gridColumn: 'span 3', textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      No payment promotion plans configured yet. Contact support.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Transactions History Logs */}
+              <div className="luxury-card">
+                <h3 style={{ fontStyle: 'italic', fontSize: '1.4rem', marginBottom: '1.25rem' }}>Subscription & Order Governance Logs</h3>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="luxury-table">
+                    <thead>
+                      <tr>
+                        <th>Order Date</th>
+                        <th>Plan Details</th>
+                        <th>Price Paid</th>
+                        <th>Allowance</th>
+                        <th style={{ textAlign: 'right' }}>Order Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {purchases.map(purchase => (
+                        <tr key={purchase._id}>
+                          <td>{new Date(purchase.purchaseDate || purchase.createdAt).toLocaleDateString()}</td>
+                          <td>
+                            <strong style={{ color: 'var(--text-primary)' }}>{purchase.planId?.name || 'Curated Package'}</strong>
+                          </td>
+                          <td>LKR {purchase.planId?.price?.toLocaleString() || '0'}</td>
+                          <td>{purchase.adCount} Promos</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span className={`badge ${purchase.status}`} style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem' }}>
+                              {purchase.status?.toUpperCase() || 'PENDING'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {purchases.length === 0 && (
+                        <tr>
+                          <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+                            No subscription orders placed yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2.5rem' }}>
             
             {/* Left Column: Form Customization Suite */}
             <div className="luxury-card">
@@ -825,9 +1036,9 @@ export default function ClientDashboard({ profile, categories, onCreateProfile, 
             </div>
 
           </div>
-
-        </div>
-      )}
+        )}
+      </div>
+    )}
 
     </div>
   );

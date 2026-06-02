@@ -18,6 +18,12 @@ router.post('/', authenticate, profileController.createProfile);
 // Client: Update profile
 router.put('/:id', authenticate, profileController.updateProfile);
 
+// Client: Promote profile
+router.patch('/promote', authenticate, profileController.promoteProfile);
+
+// Client: Demote profile
+router.patch('/demote', authenticate, profileController.demoteProfile);
+
 // Admin: Approve profile
 router.put('/:id/approve', authenticate, profileController.approveProfile);
 

@@ -11,25 +11,7 @@ export default function ClientProfileView({ profile, onBack, triggerToast }) {
     <div className="client-profile-view" style={{ animation: 'fadeIn 0.5s ease-out' }}>
       
       {/* 1. STICKY ACTION HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <button
-          className="btn-secondary"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.6rem 1.5rem',
-            fontSize: '0.88rem',
-            borderRadius: '50px',
-            cursor: 'pointer',
-            background: 'var(--bg-secondary)',
-            borderColor: 'var(--card-border)',
-            transition: 'var(--transition)'
-          }}
-          onClick={onBack}
-        >
-          <ArrowLeft size={16} /> Back to Directory
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '2rem' }}>
         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
           Vendor Profile
         </span>

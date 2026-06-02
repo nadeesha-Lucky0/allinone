@@ -9,7 +9,8 @@
     "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend",
     "build": "npm run install:all && npm run build --prefix frontend",
     "start": "node server.js",
-    "postinstall": "npm install --prefix backend"
+    "postinstall": "npm install --prefix backend",
+    "download-videos": "node download_videos.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

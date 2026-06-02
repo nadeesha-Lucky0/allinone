@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Next.js build output cache
+.next/
+out/
+build/
+
+# Heavy video assets (prevent uploading to Git/GitHub)
+*.mp4
+/public/*.mp4

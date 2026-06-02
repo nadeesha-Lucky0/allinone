@@ -112,3 +112,20 @@ exports.forgotPassword = async (req, res) => {
     res.status(500).json({ error: 'Password reset server error.' });
   }
 };
+
+// Fetch real-time user session
+exports.getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('-password');
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+    res.json({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      allowedPromotions: user.allowedPromotions
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Retrieving user session failed.' });
+  }
+};

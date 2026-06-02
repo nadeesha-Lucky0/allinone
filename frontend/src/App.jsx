@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { Briefcase, Moon, Sun, LayoutDashboard, Users, LogOut, Lock, Mail, User, ShieldAlert, Sparkles, Building, Settings, Home, Key } from 'lucide-react';
 import LandingPage from './components/LandingPage';
@@ -5,7 +7,7 @@ import ClientDashboard from './components/ClientDashboard';
 import AdminPanel from './components/AdminPanel';
 import ClientProfileView from './components/ClientProfileView';
 
-const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' && window.location.port !== '5000' ? 'http://localhost:5000/api' : '/api');
+const API_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port !== '5000' ? 'http://localhost:5000/api' : '/api');
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -24,9 +26,12 @@ export default function App() {
 
   // Platforms State
   const [categories, setCategories] = useState([]);
+  const [mainCategories, setMainCategories] = useState([]);
   const [approvedProfiles, setApprovedProfiles] = useState([]);
   const [adminAllProfiles, setAdminAllProfiles] = useState([]);
   const [myBusinessProfile, setMyBusinessProfile] = useState(null);
+  const [plans, setPlans] = useState([]);
+  const [purchases, setPurchases] = useState([]);
 
   // Auth Inputs Form States
   const [authName, setAuthName] = useState('');
@@ -37,8 +42,8 @@ export default function App() {
 
   // Initial Sync login status
   useEffect(() => {
-    const savedUser = localStorage.getItem('allinone_user');
-    const savedToken = localStorage.getItem('allinone_token');
+    const savedUser = sessionStorage.getItem('allinone_user');
+    const savedToken = sessionStorage.getItem('allinone_token');
     
     let parsedUser = null;
     if (savedUser && savedToken) {
@@ -56,6 +61,34 @@ export default function App() {
     loadCoreDirectoryData(parsedUser, savedToken);
   }, []);
 
+  // Handle profile-detail routing via browser hash histories to enable back button sync
+  useEffect(() => {
+    const handleProfileHash = () => {
+      if (typeof window === 'undefined') return;
+      const hash = window.location.hash;
+      if (hash.startsWith('#profile-')) {
+        const profileId = hash.replace('#profile-', '');
+        const found = approvedProfiles.find(p => p._id === profileId);
+        if (found) {
+          setSelectedProfileDetail(found);
+          setActiveTab('profile-detail');
+        }
+      } else if (activeTab === 'profile-detail') {
+        setActiveTab('landing');
+        setSelectedProfileDetail(null);
+      }
+    };
+
+    window.addEventListener('hashchange', handleProfileHash);
+    if (approvedProfiles.length > 0) {
+      handleProfileHash();
+    }
+
+    return () => {
+      window.removeEventListener('hashchange', handleProfileHash);
+    };
+  }, [approvedProfiles, activeTab]);
+
   const toggleTheme = () => {
     const nextTheme = theme === 'light' ? 'dark' : 'light';
     setTheme(nextTheme);
@@ -71,6 +104,16 @@ export default function App() {
       const catData = await catRes.json();
       if (Array.isArray(catData)) setCategories(catData);
 
+      // Fetch dynamic main categories
+      const mainCatRes = await fetch(`${API_URL}/main-categories`);
+      const mainCatData = await mainCatRes.json();
+      if (Array.isArray(mainCatData)) setMainCategories(mainCatData);
+
+      // Fetch dynamic subscription plans
+      const planRes = await fetch(`${API_URL}/plans`);
+      const planData = await planRes.json();
+      if (Array.isArray(planData)) setPlans(planData);
+
       // 2. Fetch approved listing profiles
       const approvedRes = await fetch(`${API_URL}/profiles`);
       const approvedData = await approvedRes.json();
@@ -78,6 +121,31 @@ export default function App() {
 
       // If logged in - load role-specific APIs
       if (userSession && tokenSession) {
+        // Fetch real-time User allowedPromotions and update state/cache
+        try {
+          const meRes = await fetch(`${API_URL}/auth/me`, {
+            headers: { 'Authorization': `Bearer ${tokenSession}` }
+          });
+          if (meRes.ok) {
+            const meData = await meRes.json();
+            setCurrentUser(meData);
+            sessionStorage.setItem('allinone_user', JSON.stringify(meData));
+          }
+        } catch (err) {
+          console.warn('Could not sync user session.');
+        }
+
+        // Fetch transaction purchases history
+        try {
+          const purchaseRes = await fetch(`${API_URL}/purchases`, {
+            headers: { 'Authorization': `Bearer ${tokenSession}` }
+          });
+          const purchaseData = await purchaseRes.json();
+          if (Array.isArray(purchaseData)) setPurchases(purchaseData);
+        } catch (err) {
+          console.warn('Could not sync purchases.');
+        }
+
         if (userSession.role === 'admin') {
           // Fetch Moderation Queue
           const adminQueueRes = await fetch(`${API_URL}/profiles/admin`, {
@@ -104,15 +172,33 @@ export default function App() {
 
   // Caching offsets for offline executions
   const loadOfflineDataCache = (userSession) => {
-    const cachedCats = localStorage.getItem('allinone_categories');
-    const cachedApproved = localStorage.getItem('allinone_approved');
+    const cachedCats = sessionStorage.getItem('allinone_categories');
+    const cachedMainCats = sessionStorage.getItem('allinone_main_categories');
+    const cachedApproved = sessionStorage.getItem('allinone_approved');
+
+    if (cachedMainCats) {
+      setMainCategories(JSON.parse(cachedMainCats));
+    } else {
+      const defaultMains = [
+        { _id: 'm1', name: 'Wedding' },
+        { _id: 'm2', name: 'Birthday Events' },
+        { _id: 'm3', name: 'Corporate Events' }
+      ];
+      setMainCategories(defaultMains);
+      sessionStorage.setItem('allinone_main_categories', JSON.stringify(defaultMains));
+    }
 
     if (cachedCats) {
       setCategories(JSON.parse(cachedCats));
     } else {
-      const cats = [{_id:'1',name:'Photography'},{_id:'2',name:'Saloon'},{_id:'3',name:'Saree Rent'},{_id:'4',name:'Wedding Car Rent'}];
+      const cats = [
+        { _id: '1', name: 'Photography', mainCategory: { _id: 'm1', name: 'Wedding' } },
+        { _id: '2', name: 'Saloon', mainCategory: { _id: 'm1', name: 'Wedding' } },
+        { _id: '3', name: 'Saree Rent', mainCategory: { _id: 'm1', name: 'Wedding' } },
+        { _id: '4', name: 'Wedding Car Rent', mainCategory: { _id: 'm1', name: 'Wedding' } }
+      ];
       setCategories(cats);
-      localStorage.setItem('allinone_categories', JSON.stringify(cats));
+      sessionStorage.setItem('allinone_categories', JSON.stringify(cats));
     }
 
     if (cachedApproved) {
@@ -123,15 +209,15 @@ export default function App() {
         { _id: '2', businessName: 'Aura Premium Salon & Bridal', businessEmail: 'aura@salonsuite.com', phone: '+9 Sri Lanka lines', address: 'Galle Road, Bambalapitiya', location: 'Galle', category: 'Saloon', status: 'approved', imageUrl: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=600&auto=format&fit=crop', description: 'High-end bridal salon services, modern hairstyles, skin conditioning treatments, and elegant manicure packages.', pricing: 'Standard packages start from LKR 120,000', website: 'https://aurasalon.lk' }
       ];
       setApprovedProfiles(seedProfiles);
-      localStorage.setItem('allinone_approved', JSON.stringify(seedProfiles));
+      sessionStorage.setItem('allinone_approved', JSON.stringify(seedProfiles));
     }
 
     if (userSession) {
       if (userSession.role === 'admin') {
-        const cachedAdminQueue = localStorage.getItem('allinone_admin_queue');
+        const cachedAdminQueue = sessionStorage.getItem('allinone_admin_queue');
         if (cachedAdminQueue) setAdminAllProfiles(JSON.parse(cachedAdminQueue));
       } else if (userSession.role === 'client') {
-        const cachedMyProfile = localStorage.getItem('allinone_my_profile');
+        const cachedMyProfile = sessionStorage.getItem('allinone_my_profile');
         if (cachedMyProfile) setMyBusinessProfile(JSON.parse(cachedMyProfile));
       }
     }
@@ -168,8 +254,8 @@ export default function App() {
       const data = await res.json();
       
       if (res.ok) {
-        localStorage.setItem('allinone_token', data.token);
-        localStorage.setItem('allinone_user', JSON.stringify(data.user));
+        sessionStorage.setItem('allinone_token', data.token);
+        sessionStorage.setItem('allinone_user', JSON.stringify(data.user));
         setCurrentUser(data.user);
         setToken(data.token);
         triggerToast(`Welcome to AllInOnePlace, ${data.user.name}!`);
@@ -199,8 +285,8 @@ export default function App() {
       const data = await res.json();
 
       if (res.ok) {
-        localStorage.setItem('allinone_token', data.token);
-        localStorage.setItem('allinone_user', JSON.stringify(data.user));
+        sessionStorage.setItem('allinone_token', data.token);
+        sessionStorage.setItem('allinone_user', JSON.stringify(data.user));
         setCurrentUser(data.user);
         setToken(data.token);
         triggerToast(`Signed in as ${data.user.name}`);
@@ -218,8 +304,8 @@ export default function App() {
       // Offline fallback login for verification
       if (authEmail === 'admin@allinone.com' && authPassword === 'adminpassword') {
         const mockAdmin = { id: 'admin', name: 'Portal Admin', email: 'admin@allinone.com', role: 'admin' };
-        localStorage.setItem('allinone_token', 'offline_token');
-        localStorage.setItem('allinone_user', JSON.stringify(mockAdmin));
+        sessionStorage.setItem('allinone_token', 'offline_token');
+        sessionStorage.setItem('allinone_user', JSON.stringify(mockAdmin));
         setCurrentUser(mockAdmin);
         setToken('offline_token');
         triggerToast('Welcome Admin! (Offline session)');
@@ -260,8 +346,8 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('allinone_token');
-    localStorage.removeItem('allinone_user');
+    sessionStorage.removeItem('allinone_token');
+    sessionStorage.removeItem('allinone_user');
     setCurrentUser(null);
     setToken(null);
     setMyBusinessProfile(null);
@@ -299,7 +385,7 @@ export default function App() {
     // Offline Cache
     const offlineProfile = { _id: Date.now().toString(), status: 'pending', ...profileData };
     setMyBusinessProfile(offlineProfile);
-    localStorage.setItem('allinone_my_profile', JSON.stringify(offlineProfile));
+    sessionStorage.setItem('allinone_my_profile', JSON.stringify(offlineProfile));
     triggerToast('✨ Profile saved locally (offline pending mode)');
     setIsLoading(false);
   };
@@ -332,13 +418,13 @@ export default function App() {
     // Offline Cache
     const offlineUpdated = { ...myBusinessProfile, ...updatedData };
     setMyBusinessProfile(offlineUpdated);
-    localStorage.setItem('allinone_my_profile', JSON.stringify(offlineUpdated));
+    sessionStorage.setItem('allinone_my_profile', JSON.stringify(offlineUpdated));
     
     // Update approved directory offline if approved
     if (offlineUpdated.status === 'approved') {
       const updatedApproved = approvedProfiles.map(p => p._id === id ? offlineUpdated : p);
       setApprovedProfiles(updatedApproved);
-      localStorage.setItem('allinone_approved', JSON.stringify(updatedApproved));
+      sessionStorage.setItem('allinone_approved', JSON.stringify(updatedApproved));
     }
     triggerToast('✨ Customizations saved locally (offline mode)');
     setIsLoading(false);
@@ -346,9 +432,42 @@ export default function App() {
 
 
   // Admin Operations
-  const handleAddCategory = async (name) => {
+  const handleAddCategory = async (name, mainCategoryId) => {
     try {
       const res = await fetch(`${API_URL}/categories`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name, mainCategory: mainCategoryId })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCategories(prev => {
+          const filtered = prev.filter(c => c._id !== data._id && c.name.toLowerCase() !== data.name.toLowerCase());
+          return [...filtered, data];
+        });
+        triggerToast(`✨ Subcategory ${name} mapped successfully!`);
+        return data;
+      } else {
+        alert(data.error);
+      }
+    } catch (err) {
+      console.warn('Offline add category.');
+    }
+    // Offline
+    const matchedMain = mainCategories.find(m => m._id === mainCategoryId) || { _id: mainCategoryId, name: 'General' };
+    const filteredCats = categories.filter(c => c.name.toLowerCase() !== name.toLowerCase());
+    const offlineCats = [...filteredCats, { _id: Date.now().toString(), name, mainCategory: matchedMain }];
+    setCategories(offlineCats);
+    sessionStorage.setItem('allinone_categories', JSON.stringify(offlineCats));
+    triggerToast('Subcategory mapped locally (offline)');
+  };
+
+  const handleAddMainCategory = async (name) => {
+    try {
+      const res = await fetch(`${API_URL}/main-categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -358,20 +477,22 @@ export default function App() {
       });
       const data = await res.json();
       if (res.ok) {
-        setCategories([...categories, data]);
-        triggerToast(`✨ Category ${name} added successfully!`);
-        return;
+        setMainCategories([...mainCategories, data]);
+        triggerToast(`✨ Main Category ${name} created!`);
+        return data;
       } else {
         alert(data.error);
       }
     } catch (err) {
-      console.warn('Offline add category.');
+      console.warn('Offline add main category.');
     }
     // Offline
-    const offlineCats = [...categories, { _id: Date.now().toString(), name }];
-    setCategories(offlineCats);
-    localStorage.setItem('allinone_categories', JSON.stringify(offlineCats));
-    triggerToast('Category added locally (offline mode)');
+    const freshMain = { _id: Date.now().toString(), name };
+    const offlineMains = [...mainCategories, freshMain];
+    setMainCategories(offlineMains);
+    sessionStorage.setItem('allinone_main_categories', JSON.stringify(offlineMains));
+    triggerToast('Main Category created locally (offline)');
+    return freshMain;
   };
 
   const handleDeleteCategory = async (name) => {
@@ -390,8 +511,32 @@ export default function App() {
     }
     const offlineCats = categories.filter(c => c.name !== name);
     setCategories(offlineCats);
-    localStorage.setItem('allinone_categories', JSON.stringify(offlineCats));
+    sessionStorage.setItem('allinone_categories', JSON.stringify(offlineCats));
     triggerToast('Category deleted locally.');
+  };
+
+  const handleDeleteMainCategory = async (name) => {
+    try {
+      const res = await fetch(`${API_URL}/main-categories/${name}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMainCategories(mainCategories.filter(m => m.name !== name));
+        triggerToast(`🗑️ Main Category ${name} removed.`);
+        return;
+      } else {
+        alert(data.error || 'Failed to remove main category.');
+      }
+    } catch (err) {
+      console.warn('Offline delete main category.');
+    }
+    // Offline Cache
+    const offlineMains = mainCategories.filter(m => m.name !== name);
+    setMainCategories(offlineMains);
+    sessionStorage.setItem('allinone_main_categories', JSON.stringify(offlineMains));
+    triggerToast('Main Category deleted locally.');
   };
 
   const handleApproveProfile = async (id) => {
@@ -418,13 +563,13 @@ export default function App() {
         const approvedItem = { ...p, status: 'approved' };
         // Seed into approved list
         setApprovedProfiles([approvedItem, ...approvedProfiles]);
-        localStorage.setItem('allinone_approved', JSON.stringify([approvedItem, ...approvedProfiles]));
+        sessionStorage.setItem('allinone_approved', JSON.stringify([approvedItem, ...approvedProfiles]));
         return approvedItem;
       }
       return p;
     });
     setAdminAllProfiles(offlineApproved);
-    localStorage.setItem('allinone_admin_queue', JSON.stringify(offlineApproved));
+    sessionStorage.setItem('allinone_admin_queue', JSON.stringify(offlineApproved));
     triggerToast('🎉 Profile approved locally (offline mode)');
   };
 
@@ -448,9 +593,205 @@ export default function App() {
     const offlineApproved = approvedProfiles.filter(p => p._id !== id);
     setAdminAllProfiles(offlineAdminQueue);
     setApprovedProfiles(offlineApproved);
-    localStorage.setItem('allinone_approved', JSON.stringify(offlineApproved));
-    localStorage.setItem('allinone_admin_queue', JSON.stringify(offlineAdminQueue));
+    sessionStorage.setItem('allinone_approved', JSON.stringify(offlineApproved));
+    sessionStorage.setItem('allinone_admin_queue', JSON.stringify(offlineAdminQueue));
     triggerToast('🗑️ Profile deleted locally (offline mode)');
+  };
+
+  // Plan & Promotion Operations
+  const handleCreatePlan = async (name, price, adCount, description) => {
+    try {
+      const res = await fetch(`${API_URL}/plans`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name, price, adCount, description })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPlans([...plans, data]);
+        triggerToast(`✨ Plan "${name}" created successfully!`);
+        return data;
+      } else {
+        alert(data.error || 'Failed to create plan.');
+      }
+    } catch (err) {
+      console.warn('Offline create plan.');
+    }
+  };
+
+  const handleUpdatePlan = async (id, name, price, adCount, description) => {
+    try {
+      const res = await fetch(`${API_URL}/plans/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name, price, adCount, description })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPlans(plans.map(p => p._id === id ? data : p));
+        triggerToast(`✨ Plan "${name}" updated successfully!`);
+        return data;
+      } else {
+        alert(data.error || 'Failed to update plan.');
+      }
+    } catch (err) {
+      console.warn('Offline update plan.');
+    }
+  };
+
+  const handleDeletePlan = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/plans/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPlans(plans.filter(p => p._id !== id));
+        triggerToast('🗑️ Plan deleted successfully.');
+        return data;
+      } else {
+        alert(data.error || 'Failed to delete plan.');
+      }
+    } catch (err) {
+      console.warn('Offline delete plan.');
+    }
+  };
+
+  const handleBuyPlan = async (planId) => {
+    try {
+      const res = await fetch(`${API_URL}/purchases`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ planId })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPurchases([data, ...purchases]);
+        triggerToast('🛒 Purchase checkout request submitted! Awaiting admin approval.');
+        return data;
+      } else {
+        alert(data.error || 'Failed to purchase plan.');
+      }
+    } catch (err) {
+      console.warn('Offline buy plan.');
+    }
+  };
+
+  const handleApprovePurchase = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/purchases/${id}/approve`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        triggerToast('✅ Payment approved successfully!');
+        setPurchases(purchases.map(p => p._id === id ? data.purchase : p));
+        // Force refresh queue to load updated user credits dynamically
+        loadCoreDirectoryData();
+        return;
+      } else {
+        alert(data.error || 'Failed to approve purchase.');
+      }
+    } catch (err) {
+      console.warn('Offline approve purchase.');
+    }
+  };
+
+  const handleDeclinePurchase = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/purchases/${id}/decline`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        triggerToast('❌ Purchase transaction declined.');
+        setPurchases(purchases.map(p => p._id === id ? data.purchase : p));
+        return;
+      } else {
+        alert(data.error || 'Failed to decline purchase.');
+      }
+    } catch (err) {
+      console.warn('Offline decline purchase.');
+    }
+  };
+
+  const handleActivatePromotion = async (category) => {
+    try {
+      const res = await fetch(`${API_URL}/profiles/promote`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ category })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        triggerToast('👑 Gig listing successfully promoted at the top of category search!');
+        setMyBusinessProfile(data.profile);
+        setCurrentUser(prev => {
+          if (!prev) return null;
+          const updated = { ...prev, allowedPromotions: data.allowedPromotions };
+          sessionStorage.setItem('allinone_user', JSON.stringify(updated));
+          return updated;
+        });
+        // Reload directory profiles list to display promoted ones instantly
+        const approvedRes = await fetch(`${API_URL}/profiles`);
+        const approvedData = await approvedRes.json();
+        if (Array.isArray(approvedData)) setApprovedProfiles(approvedData);
+        return;
+      } else {
+        alert(data.error || 'Failed to activate promotion.');
+      }
+    } catch (err) {
+      console.warn('Offline activate promotion.');
+    }
+  };
+
+  const handleDeactivatePromotion = async () => {
+    try {
+      const res = await fetch(`${API_URL}/profiles/demote`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        triggerToast('⏸️ Gig listing promotion paused.');
+        setMyBusinessProfile(data.profile);
+        setCurrentUser(prev => {
+          if (!prev) return null;
+          const updated = { ...prev, allowedPromotions: data.allowedPromotions };
+          sessionStorage.setItem('allinone_user', JSON.stringify(updated));
+          return updated;
+        });
+        // Reload directory profiles list to reflect changes instantly
+        const approvedRes = await fetch(`${API_URL}/profiles`);
+        const approvedData = await approvedRes.json();
+        if (Array.isArray(approvedData)) setApprovedProfiles(approvedData);
+        return;
+      } else {
+        alert(data.error || 'Failed to deactivate promotion.');
+      }
+    } catch (err) {
+      console.warn('Offline deactivate promotion.');
+    }
   };
 
   return (
@@ -489,7 +830,14 @@ export default function App() {
             <li>
               <button
                 className={`nav-link ${activeTab === 'landing' || activeTab === 'profile-detail' ? 'active' : ''}`}
-                onClick={() => setActiveTab('landing')}
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    window.location.hash = '';
+                    sessionStorage.removeItem('prev_category_hash');
+                  }
+                  setActiveTab('landing');
+                  setSelectedProfileDetail(null);
+                }}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
               >
                 <Home size={16} /> Gigs Directory
@@ -500,7 +848,17 @@ export default function App() {
           /* PUBLIC NAVIGATION */
           <ul className="nav-links">
             <li>
-              <button className={`nav-link ${activeTab === 'landing' || activeTab === 'profile-detail' ? 'active' : ''}`} onClick={() => setActiveTab('landing')}>
+              <button 
+                className={`nav-link ${activeTab === 'landing' || activeTab === 'profile-detail' ? 'active' : ''}`} 
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    window.location.hash = '';
+                    sessionStorage.removeItem('prev_category_hash');
+                  }
+                  setActiveTab('landing');
+                  setSelectedProfileDetail(null);
+                }}
+              >
                 Gigs Directory
               </button>
             </li>
@@ -592,9 +950,15 @@ export default function App() {
                     : approvedProfiles
                 }
                 categories={categories}
+                mainCategories={mainCategories}
                 onViewProfile={(profile) => {
-                  setSelectedProfileDetail(profile);
-                  setActiveTab('profile-detail');
+                  if (typeof window !== 'undefined') {
+                    const prevHash = window.location.hash;
+                    if (prevHash && !prevHash.startsWith('#profile-')) {
+                      sessionStorage.setItem('prev_category_hash', prevHash);
+                    }
+                    window.location.hash = `profile-${profile._id}`;
+                  }
                 }}
               />
             )}
@@ -603,7 +967,17 @@ export default function App() {
             {activeTab === 'profile-detail' && (
               <ClientProfileView
                 profile={selectedProfileDetail}
-                onBack={() => setActiveTab('landing')}
+                onBack={() => {
+                  if (typeof window !== 'undefined') {
+                    const savedHash = sessionStorage.getItem('prev_category_hash');
+                    if (savedHash) {
+                      window.location.hash = savedHash;
+                      sessionStorage.removeItem('prev_category_hash');
+                    } else {
+                      window.history.back();
+                    }
+                  }
+                }}
                 triggerToast={triggerToast}
               />
             )}
@@ -820,22 +1194,106 @@ export default function App() {
                 categories={categories}
                 onCreateProfile={handleCreateBusinessProfile}
                 onUpdateProfile={handleUpdateBusinessProfile}
+                plans={plans}
+                purchases={purchases}
+                currentUser={currentUser}
+                onBuyPlan={handleBuyPlan}
+                onActivatePromotion={handleActivatePromotion}
+                onDeactivatePromotion={handleDeactivatePromotion}
               />
             )}
 
             {currentUser && currentUser.role === 'admin' && activeTab === 'admin-console' && (
               <AdminPanel
                 categories={categories}
+                mainCategories={mainCategories}
                 allProfiles={adminAllProfiles}
                 onAddCategory={handleAddCategory}
+                onAddMainCategory={handleAddMainCategory}
                 onDeleteCategory={handleDeleteCategory}
+                onDeleteMainCategory={handleDeleteMainCategory}
                 onApproveProfile={handleApproveProfile}
                 onDeleteProfile={handleDeleteProfile}
+                plans={plans}
+                purchases={purchases}
+                onCreatePlan={handleCreatePlan}
+                onUpdatePlan={handleUpdatePlan}
+                onDeletePlan={handleDeletePlan}
+                onApprovePurchase={handleApprovePurchase}
+                onDeclinePurchase={handleDeclinePurchase}
               />
             )}
           </>
         )}
       </main>
+
+      {/* Premium Obsidian Gold Footer */}
+      <footer className="luxury-footer">
+        <div className="footer-content">
+          <div className="footer-brand-col">
+            <div className="footer-brand">
+              <Briefcase size={20} color="var(--color-gold-400)" />
+              <span>AllInOnePlace</span>
+            </div>
+            <p className="footer-description">
+              The premier curated event management directory. Discover trusted vendors, high-end bridal salons, cinematic wedding photographers, and exclusive logistics providers.
+            </p>
+          </div>
+          
+          <div className="footer-links-col">
+            <h4>Explore Portal</h4>
+            <ul>
+              <li>
+                <button onClick={() => { setActiveTab('landing'); window.location.hash = ''; }}>
+                  Gigs Directory
+                </button>
+              </li>
+              <li>
+                <button onClick={() => currentUser ? (currentUser.role === 'admin' ? setActiveTab('admin-console') : setActiveTab('my-dashboard')) : setActiveTab('login')}>
+                  Service Login
+                </button>
+              </li>
+              <li>
+                <button onClick={() => currentUser ? setActiveTab('my-dashboard') : setActiveTab('signup')}>
+                  Join as Vendor
+                </button>
+              </li>
+            </ul>
+          </div>
+          
+          <div className="footer-contact-col">
+            <h4>Get In Touch</h4>
+            <ul>
+              <li>
+                <a href="mailto:support@allinoneplace.com">
+                  <Mail size={14} color="var(--color-gold-400)" />
+                  <span>support@allinoneplace.com</span>
+                </a>
+              </li>
+              <li>
+                <a href="https://facebook.com/allinoneplace" target="_blank" rel="noopener noreferrer">
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <svg size={14} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-gold-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg>
+                    <span>Facebook Page</span>
+                  </span>
+                </a>
+              </li>
+              <li>
+                <a href="https://instagram.com/allinoneplace" target="_blank" rel="noopener noreferrer">
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <svg size={14} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-gold-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+                    <span>Instagram Profile</span>
+                  </span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+        
+        <div className="footer-bottom">
+          <p>© {new Date().getFullYear()} AllInOnePlace. Curated Premium Event Network. All Rights Reserved.</p>
+        </div>
+      </footer>
 
       {/* Success Toast */}
       {toast && <div className="toast-msg">{toast}</div>}

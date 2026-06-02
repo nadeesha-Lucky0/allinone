@@ -31,3 +31,7 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Heavy video assets (prevent uploading to Git/GitHub)
+*.mp4
+frontend/public/*.mp4

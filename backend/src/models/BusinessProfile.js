@@ -67,6 +67,14 @@ const businessProfileSchema = new mongoose.Schema({
       }
     ],
     default: []
+  },
+  isPromoted: {
+    type: Boolean,
+    default: false
+  },
+  promotedCategory: {
+    type: String,
+    default: ''
   }
 }, {
   timestamps: true
